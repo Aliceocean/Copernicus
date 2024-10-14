@@ -1,0 +1,302 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Oct 21 14:02:27 2020
+
+@author: Alice Poinselin
+"""
+import numpy as np 
+import xarray as xr 
+import matplotlib.pyplot as plt
+import netCDF4
+import dask
+import bottleneck
+import matplotlib.animation as animation
+
+import cartopy.crs as ccrs
+import cartopy.feature as cfeat
+
+
+
+modele_sst=xr.open_dataset('dataset-ibi-reanalysis-phys-005-002-daily_1603797208348.nc',decode_times=True)
+satellite_sst=xr.open_dataset('METOFFICE-GLO-SST-L4-NRT-OBS-ANOM-V2_1604227472123.nc',decode_times=True)
+ins_sst=xr.open_dataset('dataset-armor-3d-nrt-weekly_1604228161083.nc',decode_times=True)
+
+#%%question 1
+def plot_sst(t):                    #Utilisé la valeure de 4
+    
+    formatted_time=ins_sst["time"].dt.strftime(" %d %m %Y")
+    formatted_time2=satellite_sst["time"].dt.strftime(" %d %m %Y")
+    formatted_time3=modele_sst["time"].dt.strftime(" %d %m %Y")
+    form_time=str(formatted_time.values)
+    form_time2=str(formatted_time2.values)
+    form_time3=str(formatted_time3.values)
+    
+    Tmod=modele_sst.thetao[t]
+    Tsat=satellite_sst.analysed_sst[t]
+    Tsate=Tsat - 273.15 # passage en degré celsius
+    Tins=ins_sst.to[t]
+   
+
+ 
+    plt.subplots(figsize=(6,9))
+    
+    plt.tight_layout()
+    plt.subplot(3,1,1)
+    
+    Tins.plot(cmap=plt.cm.RdYlBu_r,cbar_kwargs={'label':'Temperature(°C)'})
+    plt.title('SST mesuré in-situ sur la côte Iberique 01/01/2016-01/02/2016')
+   
+    plt.axis()
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    
+    plt.subplot(3,1,2)
+    
+    Tsate.plot(cmap=plt.cm.RdYlBu_r,cbar_kwargs={'label':'Temperature(°C)'})
+    plt.title('SST mesuré par satellite sur la côte ibérique 01/01/2016-01/02/2016')
+    plt.axis()
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    
+    plt.subplot(3,1,3)
+    
+    Tmod.plot(cmap=plt.cm.RdYlBu_r,cbar_kwargs={'label':'Temperature(°C)'})
+    plt.title('SST modélisé pour la côte Iberique 01/01/2016-01/02/2016')
+    plt.axis()
+    
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    
+    plt.tight_layout(pad=1.0, w_pad=1.0, h_pad=0.5)
+    plt.figure(2)
+    plt.figtext(0,0.90,"Pour les 3 fichiers les mesures de SST correspondes",fontsize=10)
+    plt.figtext(0,0.80,"Pour les SST modélisées on peut voir une plus grande precison ",fontsize=10)
+    plt.figtext(0,0.70,"et une meilleur qualité que pour les deux autres ",fontsize=10)
+   
+    
+    
+    
+#%%Question 2
+
+modele_chl=xr.open_dataset('dataset-ibi-reanalysis-bio-005-003-daily_1603798420103.nc',decode_times=True)
+satellite_chl=xr.open_dataset('dataset-oc-glo-bio-multi-l4-chl_interpolated_4km_daily-rep_1604229419445.nc',decode_times=True)
+
+def plot_chl(t):                      #Utilisé la valeure de 4      
+    formatted_time2=satellite_chl["time"].dt.strftime(" %d %m %Y")
+    formatted_time3=modele_chl["time"].dt.strftime(" %d %m %Y")
+    form_time2=str(formatted_time2.values)
+    form_time3=str(formatted_time3.values)
+    CHLmod=modele_chl.chl[t]
+    chlsat=satellite_chl.CHL[t]
+    
+    
+
+
+    plt.subplots(figsize=(6,9))
+    plt.tight_layout()
+    plt.subplot(2,1,1)
+    chlsat.plot(cmap=plt.cm.viridis,cbar_kwargs={'label':'Temperature(°C)'})
+    plt.title('Chlorophylle observé sur la côte iberique')
+    plt.axis()
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    
+    plt.subplot(2,1,2)
+    CHLmod.plot(cmap=plt.cm.viridis,cbar_kwargs={'label':'Temperature(°C)'})
+    plt.title('Chlorophylle modélisé sur la côte iberique')
+   
+    plt.axis()
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    
+    plt.figure(2)
+    plt.figtext(0,0.90,"Pour les 2 fichiers les mesures de chlorophylle correspondes",fontsize=10)
+    plt.figtext(0,0.80,"Pour la chlorophylle modélisé on peut voir une plus grande precison ",fontsize=10)
+    plt.figtext(0,0.70,"et une meilleur qualité que pour l'observation satellite ",fontsize=10)
+    plt.figtext(0,0.60,"De plus sur le modèle on peut voir des poitns elever de chlorophylles",fontsize=10)
+    plt.figtext(0,0.50,"Qui peut être lié à des blooms")
+    plt.tight_layout(pad=1.0, w_pad=1.0, h_pad=0.5)
+   
+#%% Question 3
+def plot_current(t):  #Utilisé la valeure de 4
+    
+    lon_3=modele_sst.longitude
+    lat_3=modele_sst.latitude
+    
+    long,lat=np.meshgrid(lon_3,lat_3)
+    
+    
+    Cmod=np.squeeze(modele_sst.uo[t])
+    cmod=np.squeeze(modele_sst.vo[t])
+    
+    N=np.sqrt(Cmod*Cmod+cmod*cmod)
+
+    
+    Champ=plt.quiver(long,lat,Cmod,cmod,N,cmap=plt.cm.viridis)
+    plt.colorbar(Champ,cmap=plt.cm.viridis,label='Vitesse des courant en m.s-1')
+    plt.axis()
+    plt.title('Vitesse des courants de surface simulé 01/01/2016-01/02/2016')
+    plt.xlabel('longitudes °E')
+    plt.ylabel('latitudes °N')
+    plt.figtext(0.45,0.48,"Espagne",fontsize=10)
+    plt.figtext(0.20,0.48,'Ocean Atlantique',fontsize=10)
+    plt.figtext(0.60,0.60,"France",fontsize=10)
+    plt.figtext(0.45,0.30,"Maroc",fontsize=10)
+    
+
+   
+  
+    
+#%% QUESTION 4
+     
+Gibraltar_t=modele_sst
+time_b=modele_sst.time
+Gibraltar_chl=modele_chl
+
+
+def Evo_pointfixe (Lat, Long ):     #Utiliser 0 pour la lat et 360 pour la longitude
+    Tgibraltar=[]
+    
+    for t in range(len(time_b)):
+        Tgibraltar.append(np.squeeze(Gibraltar_t.thetao[0][Lat][Long][t]))
+    
+    Chlgibraltar=[]
+    for t in range(len(time_b)):
+        Chlgibraltar.append(np.squeeze(Gibraltar_chl.chl[0][Lat][Long][t]))
+    
+    Cmod=[]
+    cmod=[]
+    y=[]
+    T3=[] 
+    for t in range(len(time_b)):
+        
+        Cmod.append(np.squeeze(Gibraltar_t.uo[0][Lat][Long][t]))
+        cmod.append(np.squeeze(Gibraltar_t.vo[0][Lat][Long][t]))
+        y.append(0)
+        T3.append(t)
+        
+    plt.tight_layout()
+    plt.subplots(figsize=(10,10))
+   
+    plt.subplot(3,1,1)
+    plt.title("Evolution de la Temperature du detroit de gibraltar(5°E et 35°N) en Janvier 2016")
+    plt.ylabel('Temperature (en °C)')
+    plt.plot(time_b,Tgibraltar,'r')
+    plt.tight_layout()
+    
+    plt.subplot(3,1,2)
+    
+    plt.title("Evolution de la Chlorophyle aux detroit de gibraltar(5°E et 35°N) en Janvier 2016")
+    plt.ylabel("Concentration en chlorophylle(en mg.m-3)")
+    plt.plot(time_b,Chlgibraltar)
+    plt.tight_layout()
+    
+    
+    plt.subplot(3,1,3)
+    plt.quiver(T3,y,Cmod,cmod,)
+    plt.title(" Evolution des Courants de surface dans le  detroit de gibraltar(5°E et 35°N) en Janvier 2016")
+    plt.ylabel('Vitesse des courants en m.s-1')
+
+    plt.grid()
+    plt.tight_layout()
+    plt.figure(1)
+    plt.figtext(0,0.90,"On peut voir sur les courbes une diminution de la T°",fontsize=10)
+    plt.figtext(0,0.80," une variation de la chlorophylle",fontsize=10)
+    plt.figtext(0,0.70,"De plus on remarque que l'on a diminution de la température de surface",fontsize=10)
+    plt.figtext(0,0.60,"mais aussi de la chlorophylle,et un changement des courants à la même periode ",fontsize=10)
+    plt.figtext(0,0.50,"13/01/2016 au 17/01/2016, les trois courbes se suivent que cela augmente ou diminue",fontsize=10)
+    plt.figtext(0,0.40,"même si il y a de légère variation ",fontsize=10)
+    plt.figtext(0,0.30,"Cela est lié surement à la periode des fichiers qui correspond à l'hiver ",fontsize=10)
+    
+  
+  
+
+#%% Question 5
+
+'''def modele_sstanim():
+    
+    fig = plt.figure(figsize=(8, 5))
+    ax = fig.add_subplot(1, 1, 1)
+    return fig, ax
+fig, ax = modele_sstanim()
+
+frames = modele_sst.time.size       
+time=modele_sst["time"].dt.strftime(" %d %m %Y")
+
+
+def draw(frame, add_colorbar):
+    grid = area[frame]
+    if add_colorbar==True :
+        contour = grid.plot(ax=ax, add_colorbar=True,cbar_kwargs={'label':'Température °C'},cmap=plt.cm.RdYlBu_r )
+    else:
+        contour=grid.plot(add_colorbar=False,cmap=plt.cm.RdYlBu_r)               
+    titre="température de surface " 
+    plt.title(titre)
+    plt.xlabel("longitude")
+    plt.ylabel("latitude")
+    return contour
+
+def init():
+    return draw(0, add_colorbar=True)
+
+
+def animate(frame):
+    return draw(frame, add_colorbar=False)
+
+
+ani = animation.FuncAnimation(fig, animate, frames, interval=0.01, blit=False,
+                              init_func=init, repeat=False)'''
+
+
+
+#%% QUestion 6 
+
+def modele_sstanim():
+    
+    fig = plt.figure(figsize=(7, 3))
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+    time=modele_sst["time"].dt.strftime(" %d %m %Y")
+    time2=str(time.values)
+    ax.add_feature(cfeat.LAND)
+    ax.add_feature(cfeat.OCEAN)
+    ax.add_feature(cfeat.COASTLINE)
+    ax.add_feature(cfeat.BORDERS, linestyle='dotted')
+    ax.set_extent([-21,2,30,40])
+    ax.set_title(time2)
+    return fig, ax
+
+area = modele_sst.thetao
+
+_, ax = modele_sstanim()
+
+grid = area.sel(time='01-01-2016')
+grid.plot(ax=ax, transform=ccrs.PlateCarree());
+
+
+fig, ax = modele_sstanim()
+
+frames = area.time.size       
+time2=modele_sst["time"].dt.strftime(" %d %m %Y")
+
+
+def draw(frame, add_colorbar):
+    grid = area[frame]
+    contour = grid.plot(ax=ax, transform=ccrs.PlateCarree(),
+                        add_colorbar=True,cbar_kwargs={'label':'Températures en °C'},cmap=plt.cm.RdYlBu_r )
+    
+    ax.set_title()
+    return contour
+
+
+def init():
+    return draw(0, add_colorbar=True)
+
+
+def animate(frame):
+    return draw(frame, add_colorbar=False)
+
+
+ani = animation.FuncAnimation(fig, animate, frames, interval=0.01, blit=False,
+                              init_func=init, repeat=False)
+ani.save('modele_sst3.gif', writer=animation.PillowWriter(fps=8))
+plt.close(fig)
